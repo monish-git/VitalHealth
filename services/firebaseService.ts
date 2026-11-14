@@ -1,0 +1,108 @@
+// services/firebaseService.ts
+
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "./firebase";
+
+export async function findUserByHealthId(healthId: string) {
+  try {
+    if (!healthId) {
+      console.log("❌ No healthId provided");
+      return null;
+    }
+
+    // ✅ Normalize input
+    const input = healthId.trim().toUpperCase();
+
+    console.log("🔍 Searching for Health ID:", input);
+
+    ////////////////////////////////////////////////////////
+    // 🔥 PRIMARY QUERY (FAST & CORRECT)
+    ////////////////////////////////////////////////////////
+
+    const q = query(
+      collection(db, "users"),
+      where("inviteCode", "==", input)
+    );
+
+    const snapshot = await getDocs(q);
+
+    ////////////////////////////////////////////////////////
+    // ✅ IF FOUND
+    ////////////////////////////////////////////////////////
+
+    if (!snapshot.empty) {
+      const docSnap = snapshot.docs[0];
+      const data = docSnap.data();
+
+      console.log("✅ User found:", docSnap.id);
+
+      return {
+        uid: docSnap.id,
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        inviteCode: data.inviteCode || "",
+        bloodGroup: data.bloodGroup || "",
+        gender: data.gender || "",
+        profileImage: data.profileImage || "",
+        phone: data.phone || "",
+        dateOfBirth: data.dateOfBirth || "",
+        height: data.height || "",
+        weight: data.weight || "",
+        allergies: data.allergies || [],
+        medications: data.medications || [],
+        emergencyContact: data.emergencyContact || {},
+      };
+    }
+
+    ////////////////////////////////////////////////////////
+    // 🔁 FALLBACK (FOR OLD DATA FORMAT)
+    ////////////////////////////////////////////////////////
+
+    console.log("⚠️ Primary search failed, trying fallback...");
+
+    const allUsers = await getDocs(collection(db, "users"));
+
+    let foundUser: any = null;
+
+    allUsers.forEach((docSnap) => {
+      const data = docSnap.data();
+
+      const rawId = data.inviteCode || data.healthId;
+      if (!rawId) return;
+
+      const dbId = rawId.toString().toUpperCase();
+
+      if (dbId === input) {
+        console.log("✅ Fallback match found:", docSnap.id);
+
+        foundUser = {
+          uid: docSnap.id,
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          inviteCode: rawId,
+          bloodGroup: data.bloodGroup || "",
+          gender: data.gender || "",
+          profileImage: data.profileImage || "",
+          phone: data.phone || "",
+          dateOfBirth: data.dateOfBirth || "",
+          height: data.height || "",
+          weight: data.weight || "",
+          allergies: data.allergies || [],
+          medications: data.medications || [],
+          emergencyContact: data.emergencyContact || {},
+        };
+      }
+    });
+
+    if (!foundUser) {
+      console.log("❌ No user found for:", input);
+      return null;
+    }
+
+    return foundUser;
+
+  } catch (error) {
+    console.log("❌ Search error:", error);
+    return null;
+  }
+}
